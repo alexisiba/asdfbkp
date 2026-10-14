@@ -1,5 +1,7 @@
 # asdfbkp
 
+[![Go](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev)
+
 **General backup manager for the terminal.** A fast, keyboard-driven TUI to back up USB drives, external disks and Android phones on Linux.
 
 ```
@@ -13,7 +15,11 @@
 ╰───────────────────────────────────────────────────╯
 ```
 
-The name comes from the home row of the keyboard (`asdf`) plus `bkp`, short for backup: quick to type, easy to remember.
+## How this project was made
+
+In the spirit of full transparency: the idea, the design decisions and the testing are mine, but **all of the code was written by [Claude](https://www.anthropic.com/claude), by Anthropic**, using the Claude Opus 5.5 model in [Claude Code](https://claude.com/claude-code).
+
+This is my first Go project. I can read and follow the code, but I couldn't have written it, at least not this fast, without Claude. Every commit credits it as a co-author.
 
 ## Features
 
@@ -52,7 +58,7 @@ asdfbkp                # back up into the current directory
 asdfbkp ~/Backups      # back up into ~/Backups
 ```
 
-Every device gets its own folder inside the destination, for example `~/Backups/moto-g84-5G/`. The destination is shown, and can be changed, on the summary screen before anything is copied.
+Every device gets its own folder inside the destination, for example `~/Backups/Pixel-8/`. The destination is shown, and can be changed, on the summary screen before anything is copied.
 
 1. **Choose a device** from the list.
 2. **Choose what to back up:** a saved profile, a full backup, or a custom selection.
@@ -74,7 +80,7 @@ Every device gets its own folder inside the destination, for example `~/Backups/
 
 ```
 ~/Backups/
-└── moto-g84-5G/
+└── Pixel-8/
     ├── .asdfbkp-id                 # marks which device owns this folder
     ├── DCIM/Camera/...             # same paths as on the device
     └── adb-R58M123ABC-logs/        # only when a backup had problems
@@ -88,6 +94,21 @@ Every device gets its own folder inside the destination, for example `~/Backups/
 - **Android app data is never backed up.** `Android/data` and `Android/obb` hold each app's private data and caches, often tens of gigabytes. They are shown as `excluded` in the folder tree and skipped by full backups. Media that apps share, such as `Android/media` (WhatsApp photos and videos, for example), is backed up normally.
 
 Profiles are stored in `~/.config/asdfbkp/profiles.yaml`. They only hold *what* to back up, never the destination.
+
+## Contributing
+
+asdfbkp is fully open source, and everyone is warmly invited to take part. Fork it, clone it, study it, build on it, or use it as a starting point for something of your own.
+
+- **Found a bug or have an idea?** [Open an issue](https://github.com/alexisiba/asdfbkp/issues).
+- **Want to improve something?** Pull requests are very welcome, from typo fixes to new features.
+- **Have a question?** Open an issue as well; there are no silly questions.
+
+Before opening a pull request, please run the tests:
+
+```sh
+go vet ./...
+go test ./...
+```
 
 ## Responsible use
 
