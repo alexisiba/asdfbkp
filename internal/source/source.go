@@ -20,7 +20,7 @@ type Entry struct {
 	Name       string
 	IsDir      bool
 	Size       int64 // files only
-	Restricted bool  // the system doesn't allow reading it
+	Restricted bool  // never backed up (Android app data, see IsAppData)
 }
 
 // Source is the contents of a device.
@@ -57,6 +57,20 @@ func For(d device.Device) Source {
 	default:
 		return &Local{root: d.Path, hide: usbJunk}
 	}
+}
+
+// IsAppData reports whether rel is, or is inside, the private data of Android
+// apps: Android/data and Android/obb. They are never backed up. Over MTP they
+// sit one level down, inside the storage folder ("Internal storage/Android/
+// data"), and on a phone's SD card they can show up on a USB reader too.
+func IsAppData(rel string) bool {
+	parts := strings.Split(rel, "/")
+	for i := 0; i <= 1 && i+1 < len(parts); i++ {
+		if parts[i] == "Android" && (parts[i+1] == "data" || parts[i+1] == "obb") {
+			return true
+		}
+	}
+	return false
 }
 
 // Within reports whether rel is inside include (or is include itself).

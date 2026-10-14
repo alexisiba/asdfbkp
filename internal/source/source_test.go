@@ -17,7 +17,7 @@ func TestParseStat(t *testing.T) {
 		t.Fatalf("want 3 entries, got %+v", es)
 	}
 	if es[0].Name != "data" || !es[0].IsDir || !es[0].Restricted {
-		t.Errorf("Android/data should be a restricted dir listed first: %+v", es[0])
+		t.Errorf("Android/data should be an excluded dir listed first: %+v", es[0])
 	}
 	if es[1].Name != "media" || es[1].Restricted {
 		t.Errorf("unexpected entry: %+v", es[1])
@@ -84,6 +84,55 @@ func TestLocalWalk(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, []string{"DCIM/Camera/a.jpg", "notes.txt"}) {
 		t.Errorf("walk must skip junk and symlinks: %v", got)
+	}
+}
+
+func TestIsAppData(t *testing.T) {
+	for rel, want := range map[string]bool{
+		"Android/data": true, "Android/obb": true, "Android/data/com.app/x": true,
+		"Internal storage/Android/data": true, // MTP storage folder
+		"Android":                       false, "Android/media": false, "DCIM": false,
+		"a/b/Android/data": false, "Android/database": false,
+	} {
+		if got := IsAppData(rel); got != want {
+			t.Errorf("IsAppData(%q) = %v, want %v", rel, got, want)
+		}
+	}
+}
+
+func TestAppDataIsExcluded(t *testing.T) {
+	out := []byte("1|1700000000|/sdcard/Android/data/com.app/cache.bin\n" +
+		"1|1700000000|/sdcard/Android/obb/game.obb\n" +
+		"1|1700000000|/sdcard/Android/media/com.whatsapp/a.jpg\n")
+	if fs := parseFind(adbRoot, ".", out); len(fs) != 1 || fs[0].Rel != "Android/media/com.whatsapp/a.jpg" {
+		t.Errorf("app data must be filtered out: %+v", fs)
+	}
+
+	root := t.TempDir()
+	mustWrite(t, filepath.Join(root, "Android", "data", "com.app", "x"), 50)
+	mustWrite(t, filepath.Join(root, "Android", "media", "y"), 5)
+	l := &Local{root: root}
+	es, _ := l.List(context.Background(), "Android")
+	if len(es) != 2 || es[0].Name != "data" || !es[0].Restricted || es[1].Restricted {
+		t.Errorf("Android/data must be listed as excluded: %+v", es)
+	}
+	var got []string
+	l.Walk(context.Background(), ".", func(f File) error { got = append(got, f.Rel); return nil }, func(string, error) {})
+	if !reflect.DeepEqual(got, []string{"Android/media/y"}) {
+		t.Errorf("walk must skip app data: %v", got)
+	}
+	if n, _ := l.Size(context.Background(), "."); n != 5 {
+		t.Errorf("size must not count app data: %d", n)
+	}
+}
+
+func TestParseDu(t *testing.T) {
+	kb, err := parseDu([]byte("1000\t/sdcard/\r\n300\t/sdcard/Android/data\n20\t/sdcard/Android/obb\n"))
+	if err != nil || !reflect.DeepEqual(kb, []int64{1000, 300, 20}) {
+		t.Errorf("parseDu = %v, %v", kb, err)
+	}
+	if _, err := parseDu(nil); err == nil {
+		t.Error("empty du output must be an error")
 	}
 }
 

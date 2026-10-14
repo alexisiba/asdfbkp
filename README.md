@@ -85,6 +85,7 @@ Every device gets its own folder inside the destination, for example `~/Backups/
 - A file counts as **up to date** when its size and modification time match, so running the same backup again only copies what changed.
 - **Two devices with the same name** never share a folder: the second one gets `name-2`.
 - **Logs** are written only when a backup has failures or stops, and list every failed file and why. They are never deleted automatically.
+- **Android app data is never backed up.** `Android/data` and `Android/obb` hold each app's private data and caches, often tens of gigabytes. They are shown as `excluded` in the folder tree and skipped by full backups. Media that apps share, such as `Android/media` (WhatsApp photos and videos, for example), is backed up normally.
 
 Profiles are stored in `~/.config/asdfbkp/profiles.yaml`. They only hold *what* to back up, never the destination.
 

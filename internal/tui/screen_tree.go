@@ -8,6 +8,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+const appDataNotice = "Android/data and Android/obb hold apps' private data and are never backed up."
+
 // treeRows is how many tree rows fit on screen.
 func (m Model) treeRows() int {
 	if m.height == 0 {
@@ -45,7 +47,7 @@ func (m Model) updateTree(key string) (tea.Model, tea.Cmd) {
 	case " ":
 		if n := t.current(); n != nil {
 			if n.restricted {
-				m.notice = "Android doesn't allow reading this folder without root."
+				m.notice = appDataNotice
 			}
 			t.toggle(n)
 		}
@@ -72,7 +74,7 @@ func (m *Model) expand(n *node) tea.Cmd {
 		return nil
 	}
 	if n.restricted {
-		m.notice = "Android doesn't allow reading this folder without root."
+		m.notice = appDataNotice
 		return nil
 	}
 	n.expanded = true
@@ -178,7 +180,7 @@ func (m Model) treeLine(n *node, selected bool, w int) string {
 	var right string
 	switch {
 	case n.restricted:
-		right = dim.Render("no access")
+		right = dim.Render("excluded")
 	case n.err != nil:
 		right = warn.Render("read error")
 	case n.loading:

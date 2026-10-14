@@ -106,6 +106,18 @@ func TestIncrementalAndNeverDeletes(t *testing.T) {
 	}
 }
 
+func TestFullBackupSkipsAndroidAppData(t *testing.T) {
+	root, job := usb(t, ".")
+	write(t, filepath.Join(root, "Android", "data", "com.app", "secret.db"), "private")
+	write(t, filepath.Join(root, "Android", "media", "com.whatsapp", "a.jpg"), "media")
+	if res := run(t, job); res.Copied != 5 {
+		t.Fatalf("expected the 4 base files plus Android/media: %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(job.Dir, "Android", "data")); !os.IsNotExist(err) {
+		t.Error("Android/data must never be backed up")
+	}
+}
+
 func TestNoTempFilesLeftBehind(t *testing.T) {
 	_, job := usb(t, ".")
 	run(t, job)

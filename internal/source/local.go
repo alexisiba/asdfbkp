@@ -45,7 +45,9 @@ func (l *Local) List(ctx context.Context, rel string) ([]Entry, error) {
 			continue
 		}
 		e := Entry{Name: de.Name(), IsDir: de.IsDir()}
-		if !e.IsDir {
+		if e.IsDir {
+			e.Restricted = IsAppData(Join(rel, de.Name()))
+		} else {
 			if info, err := de.Info(); err == nil {
 				e.Size = info.Size()
 			}
@@ -82,7 +84,7 @@ func (l *Local) Walk(ctx context.Context, rel string, fn func(File) error, skip 
 			return nil
 		}
 		if d.IsDir() {
-			if filepath.Dir(p) == l.root && l.hide[d.Name()] {
+			if filepath.Dir(p) == l.root && l.hide[d.Name()] || IsAppData(r) {
 				return filepath.SkipDir
 			}
 			if dev, ok := deviceOf(p); devOK && ok && dev != rootDev {
@@ -121,7 +123,8 @@ func (l *Local) Size(ctx context.Context, rel string) (int64, error) {
 			return err
 		}
 		if d.IsDir() {
-			if filepath.Dir(p) == l.root && l.hide[d.Name()] {
+			r, _ := filepath.Rel(l.root, p)
+			if filepath.Dir(p) == l.root && l.hide[d.Name()] || IsAppData(filepath.ToSlash(r)) {
 				return filepath.SkipDir
 			}
 			// Don't cross into other filesystems mounted inside the source:
