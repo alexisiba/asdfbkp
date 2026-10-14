@@ -18,12 +18,6 @@ import (
 // /sdcard symlink.
 const adbRoot = "/sdcard/"
 
-// Since Android 11 these folders can't be read without root.
-var adbRestricted = map[string]bool{
-	"Android/data": true,
-	"Android/obb":  true,
-}
-
 // ADB is an Android phone accessed over USB or wireless debugging.
 type ADB struct {
 	serial string
@@ -72,7 +66,7 @@ func parseStat(rel string, out []byte) []Entry {
 		size, _ := strconv.ParseInt(parts[1], 10, 64)
 		e := Entry{Name: name, IsDir: parts[0] == "directory"}
 		if e.IsDir {
-			e.Restricted = adbRestricted[Join(rel, name)]
+			e.Restricted = IsAppData(Join(rel, name))
 		} else {
 			e.Size = size
 		}
@@ -83,28 +77,59 @@ func parseStat(rel string, out []byte) []Entry {
 }
 
 func (a *ADB) Size(ctx context.Context, rel string) (int64, error) {
-	// du runs on the phone: much faster than walking the tree over ADB. It
-	// exits with an error on restricted folders, but the total is still valid.
-	out, err := a.shell(ctx, "du -sk "+shellQuote(a.path(rel))+" 2>/dev/null")
-	fields := strings.Fields(string(out))
-	if len(fields) == 0 {
+	// du runs on the phone: much faster than walking the tree over ADB. Its
+	// exit status reports unreadable folders, but the totals are still valid.
+	// toybox du can't exclude folders, so app data is measured on its own and
+	// subtracted when rel contains it.
+	paths := []string{a.path(rel)}
+	if rel == "." || rel == "Android" {
+		paths = append(paths, a.path("Android/data"), a.path("Android/obb"))
+	}
+	cmd := "du -sk"
+	for _, p := range paths {
+		cmd += " " + shellQuote(p)
+	}
+	out, err := a.shell(ctx, cmd+" 2>/dev/null")
+	kb, perr := parseDu(out)
+	if perr != nil || len(kb) == 0 {
 		if err == nil {
-			err = fmt.Errorf("du returned nothing")
+			err = perr
 		}
 		return 0, fmt.Errorf("could not measure %s: %w", rel, err)
 	}
-	kb, perr := strconv.ParseInt(fields[0], 10, 64)
-	if perr != nil {
-		return 0, fmt.Errorf("could not measure %s: %w", rel, perr)
+	total := kb[0]
+	for _, k := range kb[1:] {
+		total -= k
 	}
-	return kb * 1024, nil
+	return max(total, 0) * 1024, nil
+}
+
+// parseDu reads the sizes, in KiB, from du -sk output, one line per path.
+func parseDu(out []byte) ([]int64, error) {
+	var kb []int64
+	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		k, err := strconv.ParseInt(fields[0], 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		kb = append(kb, k)
+	}
+	if len(kb) == 0 {
+		return nil, errors.New("du returned nothing")
+	}
+	return kb, nil
 }
 
 func (a *ADB) Walk(ctx context.Context, rel string, fn func(File) error, skip func(string, error)) error {
 	// One find on the phone lists every file with its size and modification
-	// time, much faster than walking folder by folder over ADB. Folders it
-	// can't read (such as Android/data) are skipped by find itself.
+	// time, much faster than walking folder by folder over ADB. App data is
+	// pruned so find doesn't even walk it; parseFind filters it again.
 	out, err := a.shell(ctx, "find "+shellQuote(a.path(rel))+
+		" -path '*/Android/data' -prune -o -path '*/Android/obb' -prune -o"+
 		" -type f -exec stat -c '%s|%Y|%n' {} + 2>/dev/null")
 	if err != nil && len(out) == 0 {
 		if ctx.Err() != nil {
@@ -134,7 +159,7 @@ func parseFind(root, rel string, out []byte) []File {
 		size, err1 := strconv.ParseInt(parts[0], 10, 64)
 		mtime, err2 := strconv.ParseInt(parts[1], 10, 64)
 		r, ok := strings.CutPrefix(path.Clean(parts[2]), strings.TrimSuffix(root, "/")+"/")
-		if err1 != nil || err2 != nil || !ok || !ValidRel(r) || !Within(r, rel) {
+		if err1 != nil || err2 != nil || !ok || !ValidRel(r) || !Within(r, rel) || IsAppData(r) {
 			continue // a name with line breaks or other unexpected output
 		}
 		files = append(files, File{Rel: r, Size: size, ModTime: time.Unix(mtime, 0)})

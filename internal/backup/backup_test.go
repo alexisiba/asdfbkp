@@ -106,6 +106,18 @@ func TestIncrementalAndNeverDeletes(t *testing.T) {
 	}
 }
 
+func TestFullBackupSkipsAndroidAppData(t *testing.T) {
+	root, job := usb(t, ".")
+	write(t, filepath.Join(root, "Android", "data", "com.app", "secret.db"), "private")
+	write(t, filepath.Join(root, "Android", "media", "com.whatsapp", "a.jpg"), "media")
+	if res := run(t, job); res.Copied != 5 {
+		t.Fatalf("expected the 4 base files plus Android/media: %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(job.Dir, "Android", "data")); !os.IsNotExist(err) {
+		t.Error("Android/data must never be backed up")
+	}
+}
+
 func TestNoTempFilesLeftBehind(t *testing.T) {
 	_, job := usb(t, ".")
 	run(t, job)
@@ -233,7 +245,7 @@ func TestCleanBackupLeavesNoLog(t *testing.T) {
 
 func TestWritesALogWhenFilesFail(t *testing.T) {
 	root, job := usb(t, "DCIM", "Documents")
-	job.DeviceName, job.Version = "moto g84 5G", "0.0.1"
+	job.DeviceName, job.Version = "Pixel 8", "0.0.1"
 	job.DeviceID = "adb:R58M123ABC"
 	job.Source = flaky{Source: job.Source, open: func(rel string) (io.ReadCloser, error) {
 		if rel == "Documents/cv.pdf" {
@@ -250,7 +262,7 @@ func TestWritesALogWhenFilesFail(t *testing.T) {
 		t.Errorf("log name %q must be a timestamp without colons", name)
 	}
 	log := readLog(t, res)
-	for _, want := range []string{"asdfbkp 0.0.1 · backup log", "moto g84 5G (adb:R58M123ABC)", "Selection:    DCIM, Documents",
+	for _, want := range []string{"asdfbkp 0.0.1 · backup log", "Pixel 8 (adb:R58M123ABC)", "Selection:    DCIM, Documents",
 		"Failed files:\nDocuments/cv.pdf: permission denied", "Result:       finished with 1 problem", "Copied:       2 files"} {
 		if !strings.Contains(log, want) {
 			t.Errorf("log missing %q:\n%s", want, log)
